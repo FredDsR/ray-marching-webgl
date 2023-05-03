@@ -2,6 +2,12 @@
 // from https://webgl2fundamentals.org/webgl/webgl-fundamentals.html
 
 
+async function require(href) {
+  const res = await fetch(href);
+  const text = await res.text();
+  return text;
+}
+
 "use strict";
 
 var vertexShaderSource = `#version 300 es
@@ -75,8 +81,12 @@ const vertices = [
     ]
   ]
 
-function main() {
+async function main() {
   // Get A WebGL context
+
+  const vertexShaderSource = await require('shaders/vertexShader.glsl')
+  const fragmentShaderSource = await require('shaders/fragmentShader.glsl')
+
   var canvas = document.querySelector("#canvas");
   var gl = canvas.getContext("webgl2");
   if (!gl) {
