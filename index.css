@@ -1,9 +1,27 @@
 @import url("https://webgl2fundamentals.org/webgl/resources/webgl-tutorials.css");
-body {
-  margin: 0;
+.divcanvas {
+  position: relative;
+  display: inline-block;
 }
 canvas {
-  width: 100vw;
-  height: 100vh;
+  display: block;
+}
+.playpause {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  width: 100%;
+  height: 100%;
+  font-size: 60px;
+  justify-content: center;
+  align-items: center;
+  color: rgba(255, 255, 255, 0.3);
+  transition: opacity 0.2s ease-in-out;
+}
+.playpausehide,
+.playpause:hover {
+  opacity: 0;
+}
+.iframe .divcanvas {
   display: block;
 }
