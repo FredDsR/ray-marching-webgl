@@ -150,8 +150,16 @@ float cylinderSDF(vec3 p, float h, float r) {
  */
 float sceneSDF(vec3 samplePoint) {    
     // Slowly spin the whole scene
-    samplePoint = rotateY(iTime / 2.0) * samplePoint;
+    // samplePoint = rotateY(iTime / 2.0) * samplePoint;
     
+    /*
+    * Descobri essa distorção aqui: https://michaelwalczyk.com/blog-ray-marching.html
+    */
+    float distortionLevel = cos(iTime) * 5.0;
+    float distortion = (sin(distortionLevel * samplePoint.x) * 
+                        sin(distortionLevel * samplePoint.y) * 
+                        sin(distortionLevel * samplePoint.z) * 0.25);
+
     float cylinderRadius = 0.4 + (1.0 - 0.4) * (1.0 + sin(1.7 * iTime)) / 2.0;
     float cylinder1 = cylinderSDF(samplePoint, 2.0, cylinderRadius);
     float cylinder2 = cylinderSDF(rotateX(radians(90.0)) * samplePoint, 2.0, cylinderRadius);
@@ -159,23 +167,32 @@ float sceneSDF(vec3 samplePoint) {
     
     float cube = boxSDF(samplePoint, vec3(1.8, 1.8, 1.8));
     
-    float sphere = sphereSDF(samplePoint, 1.2);
+    float sphere = sphereSDF(samplePoint, 1.0);
     
     float ballOffset = 0.4 + 1.0 + sin(1.7 * iTime);
-    float ballRadius = 0.3;
-    float balls = sphereSDF(samplePoint - vec3(ballOffset, 0.0, 0.0), ballRadius);
-    balls = unionSmoothSDF(balls, sphereSDF(samplePoint + vec3(ballOffset, 0.0, 0.0), ballRadius), 0.7);
-    balls = unionSmoothSDF(balls, sphereSDF(samplePoint - vec3(0.0, ballOffset, 0.0), ballRadius), 0.7);
-    balls = unionSmoothSDF(balls, sphereSDF(samplePoint + vec3(0.0, ballOffset, 0.0), ballRadius), 0.7);
-    balls = unionSmoothSDF(balls, sphereSDF(samplePoint - vec3(0.0, 0.0, ballOffset), ballRadius), 0.7);
-    balls = unionSmoothSDF(balls, sphereSDF(samplePoint + vec3(0.0, 0.0, ballOffset), ballRadius), 0.7);
-    
+    float ballRadius = 0.2;
+    vec3 ballPoint = rotateY(iTime) * samplePoint;
+    float balls = sphereSDF(ballPoint - vec3(ballOffset, 0.0, 0.0), ballRadius);
+    balls = unionSmoothSDF(balls, sphereSDF(ballPoint + vec3(ballOffset, 0.0, 0.0), ballRadius), 0.7);
+    balls = unionSmoothSDF(balls, sphereSDF(ballPoint - vec3(0.0, ballOffset, 0.0), ballRadius), 0.7);
+    balls = unionSmoothSDF(balls, sphereSDF(ballPoint + vec3(0.0, ballOffset, 0.0), ballRadius), 0.7);
+    balls = unionSmoothSDF(balls, sphereSDF(ballPoint - vec3(0.0, 0.0, ballOffset), ballRadius), 0.7);
+    balls = unionSmoothSDF(balls, sphereSDF(ballPoint + vec3(0.0, 0.0, ballOffset), ballRadius), 0.7);
     
     
     float csgNut = differenceSDF(intersectSDF(cube, sphere),
                          unionSDF(cylinder1, unionSDF(cylinder2, cylinder3)));
     
-    return unionSDF(balls, csgNut);
+    float baseScene = unionSDF(balls, csgNut);
+
+    float moonDist = 1.5;
+    float moonOffset = moonDist + cos(iTime + 1.0);
+
+    float moon = sphereSDF(samplePoint + moonOffset, 0.2);
+
+    float newScene = unionSmoothSDF(balls, sphere, 1.0);
+
+    return unionSmoothSDF(sphere + distortion, balls, 3.0);
 }
 
 
@@ -286,18 +303,24 @@ vec3 phongIllumination(vec3 k_a, vec3 k_d, vec3 k_s, float alpha, vec3 p, vec3 e
     const vec3 ambientLight = 0.5 * vec3(1.0, 1.0, 1.0);
     vec3 color = ambientLight * k_a;
     
-    vec3 light1Pos = vec3(4.0 * sin(iTime),
-                          2.0,
-                          4.0 * cos(iTime));
+    /*
+    * Primeira luz 
+    */
+    // vec3 light1Pos = vec3(4.0 * sin(iTime),
+    //                       2.0,
+    //                       4.0 * cos(iTime));
+    vec3 light1Pos = vec3(-4.0, 2.0, 4.0);
     vec3 light1Intensity = vec3(0.4, 0.4, 0.4);
     
     color += phongContribForLight(k_d, k_s, alpha, p, eye,
                                   light1Pos,
                                   light1Intensity);
     
-    vec3 light2Pos = vec3(2.0 * sin(0.37 * iTime),
-                          2.0 * cos(0.37 * iTime),
-                          2.0);
+    
+    /*
+    * Segunda luz 
+    */    
+    vec3 light2Pos = vec3(5.0, -2.0, -4.0);
     vec3 light2Intensity = vec3(0.4, 0.4, 0.4);
     
     color += phongContribForLight(k_d, k_s, alpha, p, eye,
@@ -342,7 +365,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     vec3 p = eye + dist * worldDir;
     
     // Use the surface normal as the ambient color of the material
-    vec3 K_a = (estimateNormal(p) + vec3(1.0)) / 2.0;
+    vec3 K_a = vec3(1.0, 0.2, 0.1);
     vec3 K_d = K_a;
     vec3 K_s = vec3(1.0, 1.0, 1.0);
     float shininess = 10.0;
