@@ -148,7 +148,7 @@ float cylinderSDF(vec3 p, float h, float r) {
  * Sign indicates whether the point is inside or outside the surface,
  * negative indicating inside.
  */
-float sceneSDF(vec3 samplePoint) {    
+vec4 sceneSDF(vec3 samplePoint) {    
     // Slowly spin the whole scene
     // samplePoint = rotateY(iTime / 2.0) * samplePoint;
     
@@ -192,7 +192,17 @@ float sceneSDF(vec3 samplePoint) {
 
     float newScene = unionSmoothSDF(balls, sphere, 1.0);
 
-    return unionSmoothSDF(sphere + distortion, balls, 3.0);
+    float newSphere = sphere + distortion;
+
+    float mix_factor = newSphere / (newSphere + balls);
+
+    
+    vec3 color = mix(
+                vec3(0.6, 0.5, 1.3),
+                vec3(0.1, 0.5, 1.0),
+                mix_factor);
+
+    return vec4(color, unionSmoothSDF(newSphere, balls, 3.0));
 }
 
 
@@ -207,19 +217,24 @@ float sceneSDF(vec3 samplePoint) {
  * start: the starting distance away from the eye
  * end: the max distance away from the ey to march before giving up
  */
-float shortestDistanceToSurface(vec3 eye, vec3 marchingDirection, float start, float end) {
+vec4 shortestDistanceToSurface(vec3 eye, vec3 marchingDirection, float start, float end) {
     float depth = start;
+    vec4 scene;
     for (int i = 0; i < MAX_MARCHING_STEPS; i++) {
-        float dist = sceneSDF(eye + depth * marchingDirection);
+        scene = sceneSDF(eye + depth * marchingDirection);
+        float dist = scene.w;
         if (dist < EPSILON) {
-			return depth;
+			return scene;
         }
         depth += dist;
         if (depth >= end) {
-            return end;
+            scene.w = end;
+            return scene;
         }
     }
-    return end;
+    
+    scene.w = end;
+    return scene;
 }
             
 
@@ -241,9 +256,9 @@ vec3 rayDirection(float fieldOfView, vec2 size, vec2 fragCoord) {
  */
 vec3 estimateNormal(vec3 p) {
     return normalize(vec3(
-        sceneSDF(vec3(p.x + EPSILON, p.y, p.z)) - sceneSDF(vec3(p.x - EPSILON, p.y, p.z)),
-        sceneSDF(vec3(p.x, p.y + EPSILON, p.z)) - sceneSDF(vec3(p.x, p.y - EPSILON, p.z)),
-        sceneSDF(vec3(p.x, p.y, p.z  + EPSILON)) - sceneSDF(vec3(p.x, p.y, p.z - EPSILON))
+        sceneSDF(vec3(p.x + EPSILON, p.y, p.z)).w - sceneSDF(vec3(p.x - EPSILON, p.y, p.z)).w,
+        sceneSDF(vec3(p.x, p.y + EPSILON, p.z)).w - sceneSDF(vec3(p.x, p.y - EPSILON, p.z)).w,
+        sceneSDF(vec3(p.x, p.y, p.z  + EPSILON)).w - sceneSDF(vec3(p.x, p.y, p.z - EPSILON)).w
     ));
 }
 
@@ -353,8 +368,10 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     
     vec3 worldDir = viewToWorld * viewDir;
     
-    float dist = shortestDistanceToSurface(eye, worldDir, MIN_DIST, MAX_DIST);
+    vec4 scene = shortestDistanceToSurface(eye, worldDir, MIN_DIST, MAX_DIST);
     
+    float dist = scene.w;
+
     if (dist > MAX_DIST - EPSILON) {
         // Didn't hit anything
         fragColor = vec4(0.0, 0.0, 0.0, 1.0);
@@ -365,7 +382,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     vec3 p = eye + dist * worldDir;
     
     // Use the surface normal as the ambient color of the material
-    vec3 K_a = vec3(1.0, 0.2, 0.1);
+    vec3 K_a = scene.xyz;
     vec3 K_d = K_a;
     vec3 K_s = vec3(1.0, 1.0, 1.0);
     float shininess = 10.0;
